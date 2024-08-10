@@ -1,0 +1,9 @@
+package com.silverest.remotty.common
+
+enum class Signal {
+    INCREASE, DECREASE, PLAY,
+    SEND_COMMAND, EXIT, ERROR,
+    SEND_EPISODES, MUTE, PLAY_OR_PAUSE,
+    SEEK_FORWARD, SEEK_BACKWARD,
+    SKIP_BACKWARD, SKIP_FORWARD, SHOWS_LIST;
+}

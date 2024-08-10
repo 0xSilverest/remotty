@@ -1,0 +1,22 @@
+type Query {
+    Page(page: Int, perPage: Int): Page
+}
+
+type Page {
+    media: [Media]
+}
+
+type Media {
+    id: Int
+    title: Title
+    coverImage: CoverImage
+}
+
+type Title {
+    romaji: String
+    english: String
+}
+
+type CoverImage {
+    extraLarge: String
+}
