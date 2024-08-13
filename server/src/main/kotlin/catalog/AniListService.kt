@@ -1,8 +1,9 @@
-package com.silverest.remotty.server
+package com.silverest.remotty.server.catalog
 
 import com.apollographql.apollo.ApolloClient
 import com.apollographql.apollo.api.Optional
 import com.silverest.remotty.common.AniObject
+import com.silverest.remotty.server.AnimeListQuery
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -10,6 +11,11 @@ import java.io.File
 import java.util.*
 
 class AniListService {
+
+    companion object {
+        private operator fun <K, V> HashMap<K, V>.set(title: V?, value: V?) {}
+    }
+
     private val apolloClient = ApolloClient.Builder()
         .serverUrl("https://graphql.anilist.co")
         .build()
@@ -68,7 +74,7 @@ class AniListService {
     }
 
     private suspend fun getAniObject(page: Int, perPage: Int = 50): List<AniObject>? {
-        val response = apolloClient.query(AnimeListQuery(Optional.present(page), Optional.present(perPage))).executeV3()
+        val response = apolloClient.query(AnimeListQuery(Optional.present(page), Optional.present(perPage))).execute()
         return response.data?.Page?.media?.map {
             AniObject(
                 id = it?.id,
@@ -89,5 +95,3 @@ class AniListService {
         return Json.decodeFromString(jsonString)
     }
 }
-
-private operator fun <K, V> HashMap<K, V>.set(title: V?, value: V?) {}

@@ -1,12 +1,16 @@
 package com.silverest.remotty.server
 
-import com.silverest.remotty.common.Message
-import com.silverest.remotty.common.Signal
+import com.silverest.remotty.server.catalog.AniListService
+import com.silverest.remotty.server.catalog.EpisodesService
+import com.silverest.remotty.server.network.ServerService
+import com.silverest.remotty.server.catalog.ShowsService
+import com.silverest.remotty.server.network.MessagesHandler
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.*
 import java.io.*
 import java.net.SocketException
 
-fun main() {
+suspend fun main() {
     val logger = KotlinLogging.logger {}
     logger.info { "Remotty started" }
 
@@ -14,30 +18,26 @@ fun main() {
 
     val folder = File("/home/silverest/Downloads/Anime")
     val aniListService = AniListService()
-    val imageService = ImageService()
-    val showsService = ShowsService(folder, aniListService, imageService, serverService)
+    val showsService = ShowsService(folder, aniListService, serverService)
     val episodesService = EpisodesService()
 
     showsService.startScheduleUpdates(1)
 
-    var running = serverService.isRunning()
-
-    Runtime.getRuntime().addShutdownHook(Thread {
-        logger.info { "Shutdown hook triggered, stopping server..." }
-        running = false
-        serverService.close()
-        logger.info { "Remotty stopped" }
-    })
-
-    val serverThread = Thread {
+    val serverJob = CoroutineScope(Dispatchers.IO).launch {
         try {
-            while (running) {
+            while (serverService.isRunning()) {
                 val clientConnection = serverService.acceptClient(showsService)
                 logger.info { "Client connected : ${clientConnection.client.inetAddress.hostAddress}" }
 
-                val messageHandler = MessagesHandler(showsService, episodesService, clientConnection)
+                val messagesHandler = MessagesHandler(showsService, episodesService, clientConnection, serverService)
+
                 try {
-                    messageHandler.parseMessages(folder)
+                    clientConnection.getMessages { message ->
+                        CoroutineScope(Dispatchers.IO).launch {
+                            messagesHandler.parseMessages(folder, message)
+                        }
+                    }
+
                 } catch (e: EOFException) {
                     logger.info { "Client closed the connection." }
                 } catch (e: SocketException) {
@@ -47,7 +47,7 @@ fun main() {
                 } catch (e: ClassNotFoundException) {
                     logger.info { "Class Not Found Error: ${e.message}" }
                 } finally {
-                    clientConnection.close()
+                    serverService.closeClient(clientConnection)
                 }
 
                 logger.info { "Client disconnected." }
@@ -57,7 +57,13 @@ fun main() {
         }
     }
 
-    serverThread.start()
+    Runtime.getRuntime().addShutdownHook(Thread {
+        logger.info { "Shutdown hook triggered, stopping server..." }
+        serverService.close()
+        logger.info { "Remotty stopped" }
+    })
+
+    serverJob.start()
     logger.info { "Server is running. Press CTRL+C to stop." }
-    serverThread.join()
+    serverJob.join()
 }

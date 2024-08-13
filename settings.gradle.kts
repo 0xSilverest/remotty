@@ -14,6 +14,15 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
     }
+    versionCatalogs {
+        create("libs") {
+            version("kotlin", "2.0.0")
+            version("agp", "8.5.2")
+            version("compose-compiler", "2.0.0")
+
+            plugin("compose-compiler", "org.jetbrains.kotlin.plugin.compose").versionRef("kotlin")
+        }
+    }
 }
 
 rootProject.name = "remotty"

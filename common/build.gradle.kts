@@ -6,5 +6,5 @@ plugins {
 apply(plugin = "kotlin")
 
 dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
 }
