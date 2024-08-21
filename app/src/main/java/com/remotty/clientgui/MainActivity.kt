@@ -21,6 +21,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -34,6 +35,7 @@ import com.remotty.clientgui.ui.screens.EpisodesListScreen
 import com.remotty.clientgui.ui.screens.RemoteControlScreen
 import com.remotty.clientgui.ui.screens.ShowsListScreen
 import com.remotty.clientgui.ui.theme.ClientGuiTheme
+import com.remotty.clientgui.ui.viewmodels.EpisodeDetailsViewModel
 import com.remotty.clientgui.ui.viewmodels.EpisodesViewModel
 import com.remotty.clientgui.ui.viewmodels.ShowsViewModel
 import com.silverest.remotty.common.Signal
@@ -76,6 +78,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val episodeDetailsRepository: EpisodeDetailsRepository by lazy {
+        EpisodeDetailsRepositoryImpl(clientManager)
+    }
+
+    private val episodeDetailsViewModel: EpisodeDetailsViewModel by viewModels {
+        object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return EpisodeDetailsViewModel(
+                    episodeDetailsRepository
+                ) as T
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -85,7 +102,8 @@ class MainActivity : ComponentActivity() {
                     MainScreen (
                         clientManager = clientManager,
                         showsViewModel = showsViewModel,
-                        episodesViewModel = episodesViewModel
+                        episodesViewModel = episodesViewModel,
+                        episodeDetailsViewModel = episodeDetailsViewModel
                     )
                 }
             }
@@ -104,6 +122,7 @@ fun AppNavHost(modifier: Modifier = Modifier,
                startDestination: String = "connectionScreen",
                showsViewModel: ShowsViewModel,
                episodesViewModel: EpisodesViewModel,
+               episodeDetailsViewModel: EpisodeDetailsViewModel,
                clientManager: ClientManager) {
     Box(modifier = modifier) {
         NavHost(
@@ -148,28 +167,51 @@ fun AppNavHost(modifier: Modifier = Modifier,
 
                 DisposableEffect(Unit) {
                     onDispose {
-                        if (navController.currentDestination?.route != "remoteControl") {
+                        if (navController.currentDestination?.route?.contains("remoteControl") != true) {
                             episodesViewModel.clearEpisodes()
                         }
                     }
                 }
             }
-            composable("remoteControl") {
+            composable(
+                "remoteControl/{showName}",
+                arguments = listOf(
+                    navArgument("showName") { type = NavType.StringType },
+                )
+            ) { backStackEntry ->
+                val showName = backStackEntry.arguments?.getString("showName") ?: ""
+                val nextEpisode by episodesViewModel.nextEpisode.collectAsStateWithLifecycle()
+                val previousEpisode by episodesViewModel.previousEpisode.collectAsStateWithLifecycle()
+
+                DisposableEffect(Unit) {
+                    onDispose {
+                        episodeDetailsViewModel.clean()
+                    }
+                }
+
                 RemoteControlScreen(
+                    showName = showName,
+                    episodesViewModel = episodesViewModel,
+                    episodeDetailsViewModel = episodeDetailsViewModel,
                     onIncreaseVolume = { clientManager.sendSignal(Signal.INCREASE) },
                     onDecreaseVolume = { clientManager.sendSignal(Signal.DECREASE) },
-                    onMute =
-                    {
-                        clientManager.sendSignal(Signal.MUTE)
+                    onMute = { clientManager.sendSignal(Signal.MUTE) },
+                    onPausePlay = { clientManager.sendSignal(Signal.PLAY_OR_PAUSE) },
+                    onForward = { clientManager.sendSignal(Signal.SEEK_FORWARD) },
+                    onBackward = { clientManager.sendSignal(Signal.SEEK_BACKWARD) },
+                    onNext = {
+                        if (nextEpisode != null) {
+                            clientManager.sendSignal(Signal.PLAY, "$showName/${nextEpisode!!.relativePath}")
+                            episodesViewModel.updateNextAndLast(showName, nextEpisode!!)
+                            episodeDetailsViewModel.fetchDetails()
+                        }
                     },
-                    onPausePlay = {
-                        clientManager.sendSignal(Signal.PLAY_OR_PAUSE)
-                    },
-                    onForward = {
-                        clientManager.sendSignal(Signal.SEEK_FORWARD)
-                    },
-                    onBackward = {
-                        clientManager.sendSignal(Signal.SEEK_BACKWARD)
+                    onLast = {
+                        if (previousEpisode != null) {
+                            clientManager.sendSignal(Signal.PLAY, "$showName/${previousEpisode!!.relativePath}")
+                            episodesViewModel.updateNextAndLast(showName, previousEpisode!!)
+                            episodeDetailsViewModel.fetchDetails()
+                        }
                     }
                 )
             }
@@ -181,7 +223,8 @@ fun AppNavHost(modifier: Modifier = Modifier,
 fun MainScreen(
     clientManager: ClientManager,
     showsViewModel: ShowsViewModel,
-    episodesViewModel: EpisodesViewModel
+    episodesViewModel: EpisodesViewModel,
+    episodeDetailsViewModel: EpisodeDetailsViewModel
 ) {
     var isConnected by remember { mutableStateOf(false) }
     val navController = rememberNavController()
@@ -191,13 +234,14 @@ fun MainScreen(
             navController = navController,
             clientManager = clientManager,
             showsViewModel = showsViewModel,
-            episodesViewModel = episodesViewModel
+            episodesViewModel = episodesViewModel,
+            episodeDetailsViewModel = episodeDetailsViewModel
         )
 
         if (isConnected) {
             RemoteControlFAB(
                 onClick = {
-                    navController.navigate("remoteControl") {
+                    navController.navigate("remoteControl/\"\"") {
                         popUpTo(navController.graph.startDestinationId)
                         launchSingleTop = true
                     }

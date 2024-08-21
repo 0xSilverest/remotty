@@ -34,14 +34,20 @@ data class MessagesHandler (
 
                     client.sendEpisodes(episodes, totalEps, remainingPages)
                 }
+                Signal.SEND_DETAILS -> {
+                    val chapters = CommandExecutor.getVideoChapters()
+                    val subs = CommandExecutor.getSubtitleTracks()
 
+                    client.sendDetails(subs, chapters)
+                }
+
+                Signal.SKIP_CHAPTER -> CommandExecutor.setChapter(message.content.toInt())
+                Signal.PUT_SUBS -> CommandExecutor.setSubtitle(message.content.toInt())
                 Signal.INCREASE -> CommandExecutor.increaseVolume(5)
                 Signal.DECREASE -> CommandExecutor.decreaseVolume(5)
                 Signal.PLAY_OR_PAUSE -> CommandExecutor.playOrPause()
                 Signal.SEEK_BACKWARD -> CommandExecutor.seek(-10)
                 Signal.SEEK_FORWARD -> CommandExecutor.seek(10)
-                Signal.SKIP_FORWARD -> CommandExecutor.seek(10)
-                Signal.SKIP_BACKWARD -> CommandExecutor.seek(10)
                 Signal.PLAY -> CommandExecutor.play("${folder.absolutePath}/${message.content}")
                 Signal.MUTE -> CommandExecutor.mute()
                 Signal.EXIT -> serverService.closeClient(client)

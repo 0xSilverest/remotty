@@ -2,6 +2,7 @@ package com.silverest.remotty.server.catalog
 
 import com.silverest.remotty.common.EpisodeDescriptor
 import com.silverest.remotty.common.ScrollDirection
+import com.silverest.remotty.server.utils.CommandExecutor
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.*
 import java.io.BufferedReader
@@ -41,7 +42,7 @@ class EpisodesService {
         val sortedFiles = files.filter { isEpisode(it) }.sorted()
         val totalEpisodes = sortedFiles.size
 
-        val startIndex = (startEpisode).coerceAtLeast(0).coerceAtMost(totalEpisodes)
+        val startIndex = (startEpisode - 1).coerceAtLeast(0).coerceAtMost(totalEpisodes)
 
         val endIndex = when {
             scrollDirection == ScrollDirection.NONE -> startIndex

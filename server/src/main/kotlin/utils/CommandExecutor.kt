@@ -1,6 +1,9 @@
 package com.silverest.remotty.server.utils
 
+import com.silverest.remotty.common.Chapter
+import com.silverest.remotty.common.SubtitleTrack
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.json.*
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.concurrent.thread
@@ -39,7 +42,15 @@ object CommandExecutor {
     fun play(videoPath: String) {
         thread {
             cleanup()
-            executeCommand(ProcessBuilder("mpv", "--fs", "--fs-screen=1", "--input-ipc-server=/tmp/mpvsocket", videoPath))
+            executeCommand(
+                ProcessBuilder(
+                    "mpv",
+                    "--fs",
+                    "--fs-screen=1",
+                    "--input-ipc-server=/tmp/mpvsocket",
+                    videoPath
+                )
+            )
         }
     }
 
@@ -63,7 +74,60 @@ object CommandExecutor {
         mpvCommand(command)
     }
 
-    private fun mpvCommand(command: String) {
+    fun setSubtitle(id: Int?) {
+        mpvCommand("""{ "command": ["set_property", "sid", ${id ?: "null"}] }""")
+    }
+
+    fun setChapter(index: Int) {
+        mpvCommand("""{ "command": ["set_property", "chapter", $index] }""")
+    }
+
+    fun getSubtitleTracks(): List<SubtitleTrack> {
+        val command = """{ "command": ["get_property", "track-list"] }"""
+        val output = mpvCommand(command)
+
+        val json = Json.parseToJsonElement(output)
+        val trackList = json.jsonObject["data"]?.jsonArray ?: return emptyList()
+
+        return trackList
+            .filter { it.jsonObject["type"]?.jsonPrimitive?.content == "sub" }
+            .mapNotNull { track ->
+                val id = track.jsonObject["id"]?.jsonPrimitive?.int
+                val title = track.jsonObject["title"]?.jsonPrimitive?.content
+                val lang = track.jsonObject["lang"]?.jsonPrimitive?.content
+
+                if (id != null && title != null && lang != null) {
+                    SubtitleTrack(id, title, lang)
+                } else {
+                    null
+                }
+            }
+    }
+
+    fun getVideoChapters(): List<Chapter> {
+        val command = """{ "command": ["get_property", "chapter-list"] }"""
+        val output = mpvCommand(command)
+
+        val json = Json.parseToJsonElement(output)
+        val chapterList = json.jsonObject["data"]?.jsonArray ?: return emptyList()
+
+        return chapterList.mapIndexed { index, chapterJson ->
+            val chapterObj = chapterJson.jsonObject
+            val title = chapterObj["title"]?.jsonPrimitive?.contentOrNull ?: "Chapter ${index + 1}"
+            val time = formatTime(chapterObj["time"]?.jsonPrimitive?.double ?: 0.0)
+            Chapter(title, time, index)
+        }
+    }
+
+    private fun formatTime(seconds: Double): String {
+        val hours = seconds.toInt() / 3600
+        val minutes = (seconds.toInt() % 3600) / 60
+        val secs = seconds.toInt() % 60
+        return String.format("%02d:%02d:%02d", hours, minutes, secs)
+    }
+
+
+    private fun mpvCommand(command: String): String {
         val echoProcessBuilder = ProcessBuilder("echo", command)
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
@@ -96,5 +160,8 @@ object CommandExecutor {
         if (errors.isNotEmpty()) {
             logger.info { "Error from socat process: $errors" }
         }
+
+
+        return results
     }
 }

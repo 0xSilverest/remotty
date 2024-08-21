@@ -59,6 +59,21 @@ data class ClientConnection (
         }
     }
 
+    fun sendDetails(subs: List<SubtitleTrack>, chapters: List<Chapter>) {
+        try {
+            oos.writeObject(
+                DetailsMessage(
+                    Signal.SEND_DETAILS,
+                    EpisodeDetails(subs, chapters)
+                )
+            )
+            oos.flush()
+            oos.reset()
+        } catch (e: SocketException) {
+            logger.error(e) { "Error while sending episodes" }
+        }
+    }
+
     fun sendShowsModification(modifyShows: Signal, newShows: Set<ShowDescriptor>, showsToRemove: Set<ShowDescriptor>) {
         try {
             oos.writeObject(
@@ -80,4 +95,6 @@ data class ClientConnection (
         ois.close()
         client.close()
     }
+
+    fun isOnline() = client.isConnected
 }

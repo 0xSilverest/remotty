@@ -7,9 +7,6 @@ interface LastWatchedEpisodeDao {
     @Query("SELECT * FROM last_watched_episodes WHERE showName = :showName")
     suspend fun getLastWatchedEpisode(showName: String): LastWatchedEpisode?
 
-    @Query("SELECT * FROM last_watched_episodes")
-    suspend fun getLastWatchedEpisodes(): List<LastWatchedEpisode>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(lastWatchedEpisode: LastWatchedEpisode)
 

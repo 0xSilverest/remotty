@@ -28,7 +28,7 @@ data class ServerService (
 
     fun closeClient(client: ClientConnection) {
         client.close()
-        clients.remove(client)
+        clients.removeIf { !client.isOnline() }
     }
 
     fun acceptClient(showsService: ShowsService): ClientConnection {

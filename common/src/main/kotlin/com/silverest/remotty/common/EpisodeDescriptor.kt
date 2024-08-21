@@ -6,8 +6,7 @@ data class EpisodeDescriptor(
     val relativePath: String,
     val episode: Int,
     val episodeLength: String,
-    val thumbnail: ByteArray?,
-    val isFullyLoaded: Boolean = false
+    val thumbnail: ByteArray?
 ) : Serializable {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

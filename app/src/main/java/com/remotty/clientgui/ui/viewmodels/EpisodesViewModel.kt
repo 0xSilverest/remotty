@@ -7,8 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.remotty.clientgui.data.EpisodesRepository
 import com.remotty.clientgui.data.LastWatchedEpisode
 import com.remotty.clientgui.data.LastWatchedEpisodeDao
-import com.silverest.remotty.common.ScrollDirection
 import com.silverest.remotty.common.EpisodeDescriptor
+import com.silverest.remotty.common.ScrollDirection
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -17,6 +17,13 @@ class EpisodesViewModel(
     private val lastWatchedEpisodeDao: LastWatchedEpisodeDao
 ) : ViewModel() {
     private val _episodes = MutableStateFlow(linkedSetOf<EpisodeDescriptor>())
+
+    private val _nextEpisode = MutableStateFlow<EpisodeDescriptor?>(null)
+    val nextEpisode: StateFlow<EpisodeDescriptor?> = _nextEpisode.asStateFlow()
+
+    private val _previousEpisode = MutableStateFlow<EpisodeDescriptor?>(null)
+    val previousEpisode: StateFlow<EpisodeDescriptor?> = _previousEpisode.asStateFlow()
+
     val episodes: StateFlow<List<EpisodeDescriptor>> = _episodes
         .map { it.toList().sortedBy { episode -> episode.episode } }
         .stateIn(
@@ -62,6 +69,28 @@ class EpisodesViewModel(
         }
 
         updateScrollState()
+    }
+
+    fun updateNextAndLast(showName: String, episode: EpisodeDescriptor) {
+        viewModelScope.launch {
+            _nextEpisode.value = episodes.value.find { it.episode == episode.episode + 1 }
+            if (_nextEpisode.value != null
+                && _nextEpisode.value?.episode!! < totalEpisodes
+                && nextEpisode.value?.episode == highestLoadedEpisode
+            ) {
+                fetchEpisodes(showName, ScrollDirection.DOWN)
+            }
+
+            _previousEpisode.value = episodes.value.find { it.episode == episode.episode - 1 }
+            if (_previousEpisode.value != null
+                && _previousEpisode.value?.episode!! > 1
+                && previousEpisode.value?.episode == lowestLoadedEpisode
+            ) {
+                fetchEpisodes(showName, ScrollDirection.DOWN)
+            }
+            Log.d(TAG, "updateNextAndLast: ${_nextEpisode.value}")
+            Log.d(TAG, "updateNextAndLast: ${_previousEpisode.value}")
+        }
     }
 
     private fun updateScrollState() {

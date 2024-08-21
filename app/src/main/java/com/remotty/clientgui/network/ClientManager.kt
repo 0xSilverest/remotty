@@ -32,6 +32,9 @@ class ClientManager(context: Context) {
     private val _showsFlow = MutableSharedFlow<Set<ShowDescriptor>>()
     val showsFlow: SharedFlow<Set<ShowDescriptor>> = _showsFlow.asSharedFlow()
 
+    private val _episodeDetails = MutableSharedFlow<EpisodeDetails>()
+    val detailsFlow: SharedFlow<EpisodeDetails> = _episodeDetails.asSharedFlow()
+
     private val _showsModificationFlow = MutableSharedFlow<Pair<Set<ShowDescriptor>, Set<ShowDescriptor>>>()
     val showsModificationFlow: SharedFlow<Pair<Set<ShowDescriptor>, Set<ShowDescriptor>>> =
         _showsModificationFlow.asSharedFlow()
@@ -80,6 +83,12 @@ class ClientManager(context: Context) {
         }
     }
 
+    fun requestEpisodeDetails() {
+        CoroutineScope(Dispatchers.IO).launch {
+            sendSignal(Signal.SEND_DETAILS)
+        }
+    }
+
     private fun startReceiveSignals() {
         if (receiveSignalsJob?.isActive == true) {
             return
@@ -91,6 +100,7 @@ class ClientManager(context: Context) {
                 try {
                     val message: Any = objectReader.readObject()
                     if (message is IMessage) {
+                        Log.d(TAG, "Received message: $message")
                         when (message) {
                             is ShowsMessage -> {
                                 _showsFlow.emit(message.shows)
@@ -107,6 +117,12 @@ class ClientManager(context: Context) {
                                         message.totalEpisodes,
                                         message.startEpisode
                                     )
+                                )
+                            }
+
+                            is DetailsMessage -> {
+                                _episodeDetails.emit(
+                                    message.details
                                 )
                             }
                         }
@@ -203,6 +219,14 @@ class ClientManager(context: Context) {
     suspend fun isConnected(): Boolean {
         checkInitialization()
         return clientSocket.isConnected
+    }
+
+    fun updateSubs(subIndex: Int) {
+        sendSignal(Signal.PUT_SUBS, "$subIndex")
+    }
+
+    fun updateChapter(chapter: Int) {
+        sendSignal(Signal.SKIP_CHAPTER, "$chapter")
     }
 
     companion object {

@@ -59,7 +59,8 @@ fun EpisodesListScreen(
         onEpisodeClick = { selectedEpisode ->
             clientManager.sendSignal(Signal.PLAY, "$showName/${selectedEpisode.relativePath}")
             episodesViewModel.updateLastWatchedEpisode(showName, selectedEpisode.episode)
-            navController.navigate("remoteControl")
+            episodesViewModel.updateNextAndLast(showName, selectedEpisode)
+            navController.navigate("remoteControl/$showName")
         },
         isLoading = isLoading,
         canScrollUp = canScrollUp,
@@ -144,6 +145,8 @@ fun LoadingIndicator() {
 }
 
 
+
+
 @Composable
 fun EpisodeCard(item: EpisodeDescriptor, onClick: (EpisodeDescriptor) -> Unit) {
     Column(
@@ -152,17 +155,8 @@ fun EpisodeCard(item: EpisodeDescriptor, onClick: (EpisodeDescriptor) -> Unit) {
             .aspectRatio(16f / 9f) // Maintain aspect ratio
             .clickable { onClick(item) }
     ) {
-        if (item.thumbnail != null) {
-            Image(
-                bitmap = BitmapFactory.decodeByteArray(item.thumbnail, 0, item.thumbnail!!.size).asImageBitmap(),
-                contentDescription = "Episode Thumbnail",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
-        } else {
+        @Composable
+        fun FallbackBox() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -170,6 +164,22 @@ fun EpisodeCard(item: EpisodeDescriptor, onClick: (EpisodeDescriptor) -> Unit) {
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             )
+        }
+
+        if (item.thumbnail != null) {
+            BitmapFactory.decodeByteArray(item.thumbnail, 0, item.thumbnail!!.size)?.let { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Episode Thumbnail",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } ?: FallbackBox()
+        } else {
+            FallbackBox()
         }
 
         Row(
