@@ -56,7 +56,7 @@ object CommandExecutor {
 
     private fun cleanup() {
         currentProcess?.destroy()
-        executeCommand(ProcessBuilder("pkill", "-9", "mpv"))
+        executeCommand(ProcessBuilder("pkill", "-6", "mpv"))
     }
 
     fun mute() {
@@ -163,5 +163,9 @@ object CommandExecutor {
 
 
         return results
+    }
+
+    fun close() {
+        executeCommand(ProcessBuilder("pkill", "-6", "mpv"))
     }
 }

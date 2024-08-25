@@ -15,3 +15,5 @@
 .cxx
 local.properties
 /*/build
+
+anilist_data.json

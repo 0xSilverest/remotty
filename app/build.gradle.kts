@@ -49,6 +49,7 @@ android {
 }
 
 dependencies {
+    implementation("com.android.volley:volley:1.2.1")
     val roomVersion = "2.6.1"
     implementation(project(":common"))
     implementation("androidx.room:room-runtime:$roomVersion")

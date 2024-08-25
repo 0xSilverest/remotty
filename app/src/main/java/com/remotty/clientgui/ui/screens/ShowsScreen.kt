@@ -1,10 +1,11 @@
 package com.remotty.clientgui.ui.screens
 
-import android.content.ContentValues.TAG
 import android.graphics.BitmapFactory
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,6 +13,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -20,23 +25,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.remotty.clientgui.network.ClientManager
 import com.remotty.clientgui.ui.viewmodels.ShowsViewModel
 import com.silverest.remotty.common.ShowDescriptor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ShowsListScreen(
-                    showsViewModel: ShowsViewModel,
-                    navController: NavController,
-                    clientManager: ClientManager) {
+    showsViewModel: ShowsViewModel,
+    navController: NavController,
+    clientManager: ClientManager
+) {
     val filteredShows by showsViewModel.filteredShows.collectAsStateWithLifecycle()
     val isLoading by showsViewModel.isLoading.collectAsStateWithLifecycle()
     val searchQuery by showsViewModel.searchQuery.collectAsStateWithLifecycle()
@@ -44,13 +54,10 @@ fun ShowsListScreen(
     var isSearchActive by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        Log.d("ShowsListScreen", "Checking connection")
         isConnected = clientManager.isConnected()
         if (isConnected) {
-            Log.d("ShowsListScreen", "Connected, requesting shows list")
             showsViewModel.requestShowsList()
         } else {
-            Log.d("ShowsListScreen", "Not connected, navigating to connection screen")
             navController.navigate("connectionScreen") {
                 popUpTo("showsList") { inclusive = true }
             }
@@ -58,11 +65,15 @@ fun ShowsListScreen(
     }
 
     BackHandler {
-        Log.d("ShowsListScreen", "Back pressed, cleaning up")
-        showsViewModel.clean()
-        clientManager.close()
-        navController.navigate("connectionScreen") {
-            popUpTo("showsList") { inclusive = true }
+        if (isSearchActive) {
+            isSearchActive = false
+            showsViewModel.updateSearchQuery("")
+        } else {
+            showsViewModel.clean()
+            clientManager.close()
+            navController.navigate("connectionScreen") {
+                popUpTo("showsList") { inclusive = true }
+            }
         }
     }
 
@@ -73,178 +84,205 @@ fun ShowsListScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 12.dp)
-                .height(56.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                this@Row.AnimatedVisibility(
-                    visible = !isSearchActive,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        val animatedPadding by animateDpAsState(
+            targetValue = if (isSearchActive) 72.dp else 0.dp,
+            animationSpec = spring(stiffness = Spring.StiffnessLow), label = ""
+        )
+
+        Box(modifier = Modifier.padding(top = animatedPadding)) {
+            when {
+                !isConnected -> {
+                    Text("Not connected", modifier = Modifier.align(Alignment.Center))
+                }
+
+                isLoading -> {
+                    LoadingScreen()
+                }
+
+                filteredShows.isEmpty() -> {
                     Text(
-                        "Anime List",
-                        style = MaterialTheme.typography.titleLarge
+                        if (searchQuery.isEmpty()) "No shows available" else "No shows match your search",
+                        modifier = Modifier.align(Alignment.Center)
                     )
                 }
 
-                this@Row.AnimatedVisibility(
-                    visible = isSearchActive,
-                    enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start),
-                    exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start)
-                ) {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { showsViewModel.updateSearchQuery(it) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .height(56.dp),
-                        colors = TextFieldDefaults.colors(
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        placeholder = { Text("Search anime...") },
-                        singleLine = true,
-                        textStyle = LocalTextStyle.current.copy(
-                            fontSize = MaterialTheme.typography.bodyLarge.fontSize
-                        )
+                else -> {
+                    ShowsList(
+                        shows = filteredShows.toList(),
+                        navController = navController,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-            }
-
-            IconButton(
-                onClick = {
-                    isSearchActive = !isSearchActive
-                    if (!isSearchActive) showsViewModel.updateSearchQuery("")
-                }
-            ) {
-                Icon(
-                    imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                    contentDescription = if (isSearchActive) "Close search" else "Open search"
-                )
             }
         }
 
-        when {
-            !isConnected -> {
-                Text("Not connected")
-            }
+        AnimatedVisibility(
+            visible = isSearchActive,
+            enter = fadeIn() + slideInVertically(),
+            exit = fadeOut() + slideOutVertically(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            TextField(
+                value = searchQuery,
+                onValueChange = { showsViewModel.updateSearchQuery(it) },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search anime...") },
+                trailingIcon = {
+                    IconButton(onClick = {
+                        isSearchActive = false
+                        showsViewModel.updateSearchQuery("")
+                    }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+                    }
+                },
+                singleLine = true,
+                shape = CircleShape,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+        }
 
-            isLoading -> {
-                LoadingScreen()
-            }
-
-            filteredShows.isEmpty() -> {
-                if (searchQuery.isEmpty()) {
-                    Text("No shows available")
-                } else {
-                    Text("No shows match your search")
-                }
-            }
-
-            else -> {
-                ShowsList(filteredShows.toList(), navController)
-            }
+        FloatingActionButton(
+            onClick = { isSearchActive = !isSearchActive },
+            containerColor = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .zIndex(2f)
+        ) {
+            Icon(
+                imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                contentDescription = if (isSearchActive) "Close search" else "Open search"
+            )
         }
     }
 }
 
 @Composable
-fun ShowsCard (item: ShowDescriptor, navController: NavController) {
-    Log.d(TAG, "FileCard: $item")
-    Column(
-        modifier = Modifier
-            .clickable {
-                navController.navigate("episodesList/${item.name}")
-            }
-            .padding(8.dp)
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+fun ShowsList(shows: List<ShowDescriptor>, navController: NavController, modifier: Modifier = Modifier) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 160.dp),
+        contentPadding = PaddingValues(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
     ) {
-
-        @Composable
-        fun FallbackCoverArt(name: String) {
-            Box(
-                modifier = Modifier
-                    .height(280.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        items(shows) { show ->
+            ShowCard(show = show, navController = navController)
         }
+    }
+}
 
-        item.coverArt?.let { coverArt ->
-            val bitmap = remember(coverArt) {
+@Composable
+fun ShowCard(show: ShowDescriptor, navController: NavController) {
+    var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(show.coverArt) {
+        isLoading = true
+        imageBitmap = withContext(Dispatchers.IO) {
+            show.coverArt?.let { coverArt ->
                 runCatching {
                     BitmapFactory.decodeByteArray(coverArt, 0, coverArt.size)?.asImageBitmap()
                 }.getOrNull()
             }
+        }
+        isLoading = false
+    }
 
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = "${item.name} Cover art",
-                    modifier = Modifier
-                        .height(280.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                FallbackCoverArt(item.name)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(0.7f)
+            .clickable { navController.navigate("episodesList/${show.name}") },
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                isLoading -> LoadingPlaceholder()
+                imageBitmap != null -> {
+                    Image(
+                        bitmap = imageBitmap!!,
+                        contentDescription = "${show.name} Cover art",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                else -> ErrorPlaceholder(show.name)
             }
-        } ?: FallbackCoverArt(item.name)
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = item.name,
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.fillMaxWidth()
-        )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.6f),
+                                Color.Black.copy(alpha = 0.8f)
+                            ),
+                            startY = 100f
+                        )
+                    )
+            )
+
+            Text(
+                text = show.name,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
     }
 }
 
 @Composable
 fun LoadingScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator()
     }
 }
 
 @Composable
-fun ShowsList(shows: List<ShowDescriptor>, navController: NavController) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(8.dp)
+fun LoadingPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.LightGray),
+        contentAlignment = Alignment.Center
     ) {
-        items(shows) { show ->
-            ShowsCard(
-                show,
-                navController
-            )
-        }
+        CircularProgressIndicator(
+            modifier = Modifier.size(48.dp),
+            color = MaterialTheme.colorScheme.secondary
+        )
+    }
+}
+
+@Composable
+fun ErrorPlaceholder(showName: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.LightGray),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = showName,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.DarkGray,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(8.dp)
+        )
     }
 }

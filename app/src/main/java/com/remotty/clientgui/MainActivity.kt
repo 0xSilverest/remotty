@@ -212,7 +212,8 @@ fun AppNavHost(modifier: Modifier = Modifier,
                             episodesViewModel.updateNextAndLast(showName, previousEpisode!!)
                             episodeDetailsViewModel.fetchDetails()
                         }
-                    }
+                    },
+                    onClose = { clientManager.sendSignal(Signal.CLOSE)}
                 )
             }
         }

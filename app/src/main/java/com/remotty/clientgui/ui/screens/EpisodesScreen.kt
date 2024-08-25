@@ -5,28 +5,31 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.staggeredgrid.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.remotty.clientgui.network.ClientManager
 import com.remotty.clientgui.ui.viewmodels.EpisodesViewModel
-import com.silverest.remotty.common.ScrollDirection
 import com.silverest.remotty.common.EpisodeDescriptor
+import com.silverest.remotty.common.ScrollDirection
 import com.silverest.remotty.common.Signal
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -43,7 +46,6 @@ fun EpisodesListScreen(
     val isLoading by episodesViewModel.isLoading.collectAsStateWithLifecycle()
     val canScrollUp by episodesViewModel.canScrollUp.collectAsStateWithLifecycle()
     val canScrollDown by episodesViewModel.canScrollDown.collectAsStateWithLifecycle()
-    val listState = rememberLazyGridState()
 
     LaunchedEffect(showName) {
         episodesViewModel.clearEpisodes()
@@ -52,7 +54,6 @@ fun EpisodesListScreen(
 
     EpisodesList(
         episodes = episodes,
-        gridState = listState,
         onLoadMore = { direction ->
             episodesViewModel.fetchEpisodes(showName, direction)
         },
@@ -72,13 +73,13 @@ fun EpisodesListScreen(
 @Composable
 fun EpisodesList(
     episodes: List<EpisodeDescriptor>,
-    gridState: LazyGridState,
     onLoadMore: (ScrollDirection) -> Unit,
     onEpisodeClick: (EpisodeDescriptor) -> Unit,
     isLoading: Boolean,
     canScrollUp: Boolean,
     canScrollDown: Boolean
 ) {
+    val gridState = rememberLazyStaggeredGridState()
 
     LaunchedEffect(gridState, canScrollDown, canScrollUp, isLoading) {
         snapshotFlow {
@@ -102,13 +103,15 @@ fun EpisodesList(
             }
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+    LazyVerticalStaggeredGrid(
+        columns = StaggeredGridCells.Adaptive(minSize = 160.dp),
         state = gridState,
-        contentPadding = PaddingValues(8.dp)
+        contentPadding = PaddingValues(8.dp),
+        verticalItemSpacing = 8.dp,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (isLoading && (episodes.isEmpty() || canScrollUp)) {
-            item(span = { GridItemSpan(2) }) {
+            item(span = StaggeredGridItemSpan.FullLine) {
                 LoadingIndicator()
             }
         }
@@ -121,7 +124,7 @@ fun EpisodesList(
         }
 
         if (isLoading && episodes.isNotEmpty() && canScrollDown) {
-            item(span = { GridItemSpan(2) }) {
+            item(span = StaggeredGridItemSpan.FullLine) {
                 LoadingIndicator()
             }
         }
@@ -144,62 +147,79 @@ fun LoadingIndicator() {
     }
 }
 
-
-
-
 @Composable
 fun EpisodeCard(item: EpisodeDescriptor, onClick: (EpisodeDescriptor) -> Unit) {
-    Column(
+    Card(
         modifier = Modifier
-            .padding(4.dp)
-            .aspectRatio(16f / 9f) // Maintain aspect ratio
-            .clickable { onClick(item) }
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+            .clickable { onClick(item) },
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        @Composable
-        fun FallbackBox() {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            )
-        }
-
-        if (item.thumbnail != null) {
-            BitmapFactory.decodeByteArray(item.thumbnail, 0, item.thumbnail!!.size)?.let { bitmap ->
+        Box(contentAlignment = Alignment.BottomStart) {
+            if (item.thumbnail != null) {
                 Image(
-                    bitmap = bitmap.asImageBitmap(),
+                    bitmap = BitmapFactory.decodeByteArray(item.thumbnail, 0, item.thumbnail!!.size).asImageBitmap(),
                     contentDescription = "Episode Thumbnail",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-            } ?: FallbackBox()
-        } else {
-            FallbackBox()
-        }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+            }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Ep ${item.episode}",
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.6f),
+                                Color.Black.copy(alpha = 0.8f)
+                            ),
+                            start = Offset(Float.POSITIVE_INFINITY, 0f),
+                            end = Offset(0f, Float.POSITIVE_INFINITY),
+                        )
+                    )
             )
-            Text(
-                text = item.episodeLength,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = item.episodeLength,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+                Text(
+                    text = "Episode ${item.episode}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Watched indicator (assuming you have this information)
+            if (item.isWatched) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Watched",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(24.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    tint = Color.White
+                )
+            }
         }
     }
 }
