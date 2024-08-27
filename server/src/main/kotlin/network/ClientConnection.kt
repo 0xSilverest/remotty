@@ -36,9 +36,9 @@ data class ClientConnection (
         }
     }
 
-    fun sendEpisodes(episodes: List<EpisodeDescriptor>, totalEpisodes: Int, startEpisode: Int) {
+    fun sendEpisodes(showName: String, episodes: List<EpisodeDescriptor>, totalEpisodes: Int, startEpisode: Int) {
         launch {
-            oos.writeObject(EpisodeMessage(Signal.SEND_EPISODES, episodes, totalEpisodes, startEpisode))
+            oos.writeObject(EpisodeMessage(Signal.SEND_EPISODES, showName, episodes, totalEpisodes, startEpisode))
             oos.flush()
             oos.reset()
         }

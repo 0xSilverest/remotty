@@ -32,9 +32,9 @@ data class MessagesHandler (
                         ScrollDirection.valueOf(direction)
                     )
 
-                    client.sendEpisodes(episodes, totalEps, remainingPages)
+                    client.sendEpisodes(showName, episodes, totalEps, remainingPages)
                 }
-                Signal.SEND_DETAILS -> {
+         Signal.SEND_DETAILS -> {
                     val chapters = CommandExecutor.getVideoChapters()
                     val subs = CommandExecutor.getSubtitleTracks()
 

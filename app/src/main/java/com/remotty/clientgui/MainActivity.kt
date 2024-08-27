@@ -51,14 +51,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private val episodesRepository: EpisodesRepository by lazy {
-      EpisodesRepositoryImpl(clientManager)
+        EpisodesRepositoryImpl(clientManager)
     }
+
 
     private val episodesViewModel: EpisodesViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
-                return EpisodesViewModel(episodesRepository, database.lastWatchedEpisodeDao()) as T
+                return EpisodesViewModel(
+                    episodesRepository,
+                    database.lastWatchedEpisodeDao(),
+                    database.watchedEpisodeDao()
+                ) as T
             }
         }
     }
@@ -99,7 +104,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             ClientGuiTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainScreen (
+                    MainScreen(
                         clientManager = clientManager,
                         showsViewModel = showsViewModel,
                         episodesViewModel = episodesViewModel,
@@ -164,14 +169,6 @@ fun AppNavHost(modifier: Modifier = Modifier,
             ) { backStackEntry ->
                 val showName = backStackEntry.arguments?.getString("showName") ?: ""
                 EpisodesListScreen(episodesViewModel, showName, navController, clientManager)
-
-                DisposableEffect(Unit) {
-                    onDispose {
-                        if (navController.currentDestination?.route?.contains("remoteControl") != true) {
-                            episodesViewModel.clearEpisodes()
-                        }
-                    }
-                }
             }
             composable(
                 "remoteControl/{showName}",

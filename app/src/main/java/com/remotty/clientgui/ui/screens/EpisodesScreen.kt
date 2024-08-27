@@ -11,13 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -43,17 +39,28 @@ fun EpisodesListScreen(
     clientManager: ClientManager
 ) {
     val episodes by episodesViewModel.episodes.collectAsStateWithLifecycle()
+    val watchedEpisodes by episodesViewModel.watchedEpisodes.collectAsStateWithLifecycle()
     val isLoading by episodesViewModel.isLoading.collectAsStateWithLifecycle()
     val canScrollUp by episodesViewModel.canScrollUp.collectAsStateWithLifecycle()
     val canScrollDown by episodesViewModel.canScrollDown.collectAsStateWithLifecycle()
 
     LaunchedEffect(showName) {
-        episodesViewModel.clearEpisodes()
+        episodesViewModel.clean()
+        episodesViewModel.fetchWatchedEpisodes(showName)
         episodesViewModel.startFetchingEpisodes(showName)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (navController.currentDestination?.route?.contains("remoteControl") != true) {
+                episodesViewModel.clean()
+            }
+        }
     }
 
     EpisodesList(
         episodes = episodes,
+        watchedEpisodes = watchedEpisodes,
         onLoadMore = { direction ->
             episodesViewModel.fetchEpisodes(showName, direction)
         },
@@ -61,7 +68,11 @@ fun EpisodesListScreen(
             clientManager.sendSignal(Signal.PLAY, "$showName/${selectedEpisode.relativePath}")
             episodesViewModel.updateLastWatchedEpisode(showName, selectedEpisode.episode)
             episodesViewModel.updateNextAndLast(showName, selectedEpisode)
+            episodesViewModel.updateWatchedStatus(showName, selectedEpisode.episode, true)
             navController.navigate("remoteControl/$showName")
+        },
+        onWatchedToggle = { episode ->
+            episodesViewModel.updateWatchedStatus(showName, episode.episode, !episode.isWatched)
         },
         isLoading = isLoading,
         canScrollUp = canScrollUp,
@@ -73,8 +84,10 @@ fun EpisodesListScreen(
 @Composable
 fun EpisodesList(
     episodes: List<EpisodeDescriptor>,
+    watchedEpisodes: Set<Int>,
     onLoadMore: (ScrollDirection) -> Unit,
     onEpisodeClick: (EpisodeDescriptor) -> Unit,
+    onWatchedToggle: (EpisodeDescriptor) -> Unit,
     isLoading: Boolean,
     canScrollUp: Boolean,
     canScrollDown: Boolean
@@ -118,9 +131,15 @@ fun EpisodesList(
 
         items(
             items = episodes,
-            key = { it.episode }
+            key = { "${it.episode}" }
         ) { episode ->
-            EpisodeCard(episode) { onEpisodeClick(it) }
+            key(episode.episode, episode.episode in watchedEpisodes) {
+                EpisodeCard(
+                    episode = episode.copy(isWatched = episode.episode in watchedEpisodes),
+                    onClick = { onEpisodeClick(it) },
+                    onWatchedToggle = { onWatchedToggle(it) }
+                )
+            }
         }
 
         if (isLoading && episodes.isNotEmpty() && canScrollDown) {
@@ -148,19 +167,29 @@ fun LoadingIndicator() {
 }
 
 @Composable
-fun EpisodeCard(item: EpisodeDescriptor, onClick: (EpisodeDescriptor) -> Unit) {
+fun EpisodeCard(
+    episode: EpisodeDescriptor,
+    onClick: (EpisodeDescriptor) -> Unit,
+    onWatchedToggle: (EpisodeDescriptor) -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
-            .clickable { onClick(item) },
+            .clickable { onClick(episode) },
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Box(contentAlignment = Alignment.BottomStart) {
-            if (item.thumbnail != null) {
+            if (episode.thumbnail != null && BitmapFactory.decodeByteArray(
+                    episode.thumbnail,
+                    0,
+                    episode.thumbnail!!.size
+                ) != null
+            ) {
                 Image(
-                    bitmap = BitmapFactory.decodeByteArray(item.thumbnail, 0, item.thumbnail!!.size).asImageBitmap(),
+                    bitmap = BitmapFactory.decodeByteArray(episode.thumbnail, 0, episode.thumbnail!!.size)
+                        .asImageBitmap(),
                     contentDescription = "Episode Thumbnail",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -177,48 +206,56 @@ fun EpisodeCard(item: EpisodeDescriptor, onClick: (EpisodeDescriptor) -> Unit) {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        Brush.linearGradient(
+                        Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.6f),
-                                Color.Black.copy(alpha = 0.8f)
+                                Color.Black.copy(alpha = 0.7f)
                             ),
-                            start = Offset(Float.POSITIVE_INFINITY, 0f),
-                            end = Offset(0f, Float.POSITIVE_INFINITY),
+                            startY = 0f,
+                            endY = Float.POSITIVE_INFINITY
                         )
                     )
             )
 
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(12.dp)
             ) {
-                Text(
-                    text = item.episodeLength,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.8f)
-                )
-                Text(
-                    text = "Episode ${item.episode}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+                Column {
+                    Text(
+                        text = episode.episodeLength,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = "Episode ${episode.episode}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
-            // Watched indicator (assuming you have this information)
-            if (item.isWatched) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Watched",
+                Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
+                        .align(Alignment.BottomEnd)
                         .size(24.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                    tint = Color.White
-                )
+                        .background(
+                            color = if (episode.isWatched) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f),
+                            shape = CircleShape
+                        )
+                        .clickable {
+                            onWatchedToggle(episode)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = if (episode.isWatched) "Watched" else "Mark as watched",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
