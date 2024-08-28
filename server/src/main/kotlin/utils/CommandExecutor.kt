@@ -5,6 +5,7 @@ import com.silverest.remotty.common.SubtitleTrack
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.*
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import kotlin.concurrent.thread
 
@@ -167,5 +168,11 @@ object CommandExecutor {
 
     fun close() {
         executeCommand(ProcessBuilder("pkill", "-6", "mpv"))
+    }
+
+    fun playMovie(path: String) {
+        val movieDirectory = File(path)
+        val videoFile = movieDirectory.listFiles()?.firstOrNull { it.extension in listOf("mkv", "mp4") }
+        videoFile?.let { play(it.absolutePath) }
     }
 }

@@ -38,6 +38,8 @@ import androidx.navigation.NavController
 import com.remotty.clientgui.network.ClientManager
 import com.remotty.clientgui.ui.viewmodels.ShowsViewModel
 import com.silverest.remotty.common.ShowDescriptor
+import com.silverest.remotty.common.ShowFormat
+import com.silverest.remotty.common.Signal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -110,6 +112,7 @@ fun ShowsListScreen(
                 else -> {
                     ShowsList(
                         shows = filteredShows.toList(),
+                        clientManager = clientManager,
                         navController = navController,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -153,6 +156,7 @@ fun ShowsListScreen(
         FloatingActionButton(
             onClick = { isSearchActive = !isSearchActive },
             containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
@@ -167,7 +171,7 @@ fun ShowsListScreen(
 }
 
 @Composable
-fun ShowsList(shows: List<ShowDescriptor>, navController: NavController, modifier: Modifier = Modifier) {
+fun ShowsList(shows: List<ShowDescriptor>, navController: NavController, clientManager: ClientManager, modifier: Modifier = Modifier) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 160.dp),
         contentPadding = PaddingValues(8.dp),
@@ -176,13 +180,13 @@ fun ShowsList(shows: List<ShowDescriptor>, navController: NavController, modifie
         modifier = modifier
     ) {
         items(shows) { show ->
-            ShowCard(show = show, navController = navController)
+            ShowCard(show = show, navController = navController, clientManager = clientManager)
         }
     }
 }
 
 @Composable
-fun ShowCard(show: ShowDescriptor, navController: NavController) {
+fun ShowCard(show: ShowDescriptor, navController: NavController, clientManager: ClientManager) {
     var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
@@ -202,7 +206,14 @@ fun ShowCard(show: ShowDescriptor, navController: NavController) {
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(0.7f)
-            .clickable { navController.navigate("episodesList/${show.name}") },
+            .clickable {
+                if (show.format == ShowFormat.MOVIE) {
+                    clientManager.sendSignal(Signal.PLAY_MOVIE, show.name)
+                    navController.navigate("remoteControl/${show.name}")
+                } else {
+                    navController.navigate("episodesList/${show.name}")
+                }
+            },
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -217,6 +228,7 @@ fun ShowCard(show: ShowDescriptor, navController: NavController) {
                         contentScale = ContentScale.Crop
                     )
                 }
+
                 else -> ErrorPlaceholder(show.name)
             }
 
@@ -243,6 +255,20 @@ fun ShowCard(show: ShowDescriptor, navController: NavController) {
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White
             )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(0.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(bottomStart = 8.dp))
+                    .padding(10.dp)
+            ) {
+                Text(
+                    text = if (show.format == ShowFormat.MOVIE) "Movie" else "TV",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
         }
     }
 }

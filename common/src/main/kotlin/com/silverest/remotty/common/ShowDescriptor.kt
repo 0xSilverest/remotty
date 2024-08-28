@@ -6,6 +6,7 @@ data class ShowDescriptor(
     val coverArt: ByteArray?,
     val name: String,
     val rootPath: String,
+    val format: ShowFormat = ShowFormat.UNKNOWN,
 ) : Serializable {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -31,6 +32,6 @@ data class ShowDescriptor(
     }
 
     override fun toString(): String {
-        return "ShowDescriptor(name='$name', rootPath='$rootPath')"
+        return "ShowDescriptor(name='$name', rootPath='$rootPath', format=$format)"
     }
 }

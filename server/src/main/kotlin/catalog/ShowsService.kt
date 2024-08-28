@@ -2,6 +2,7 @@ package com.silverest.remotty.server.catalog
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.silverest.remotty.common.ShowDescriptor
+import com.silverest.remotty.common.ShowFormat
 import com.silverest.remotty.server.network.ServerService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.*
@@ -31,12 +32,27 @@ data class ShowsService (
 
     private fun loadShows(): List<ShowDescriptor>? {
         val loadingStart = System.currentTimeMillis()
-        val shows = folder.listFiles()?.onEach { logger.debug { it } }?.map {
+        val shows = folder.listFiles()?.onEach { logger.debug { it } }?.map { show ->
+            val aniObject = aniListService.get(show.name.uppercase(Locale.ROOT))
             ShowDescriptor(
-                coverArt = aniListService.get(it.name.uppercase(Locale.ROOT))
-                    ?.let { url -> fetchCoverArt(url, it.name) },
-                name = it.name,
-                rootPath = it.absolutePath
+                coverArt = runCatching {
+                    aniObject?.coverImageUrl?.let { url ->
+                        fetchCoverArt(
+                            url,
+                            show.name
+                        )
+                    }
+                }.onFailure { e -> logger.error { "Failed to fetch cover art for ${show.name}.\n${e.message}" } }
+                    .getOrNull() ?: "".toByteArray(),
+                name = show.name,
+                rootPath = show.absolutePath,
+                format = runCatching {
+                    aniObject?.format?.let { format ->
+                        ShowFormat.valueOf(format)
+                    }
+                }.onFailure { e -> logger.error { "Invalid format for ${show.name}:${aniObject?.format}.\n${e.message}" } }
+                    .getOrNull()
+                    ?: ShowFormat.UNKNOWN
             )
         }
         val loadingEnd = System.currentTimeMillis()
@@ -45,8 +61,6 @@ data class ShowsService (
     }
 
     private fun updateShows() {
-        //shows.clear()
-        //shows.addAll(loadShows() ?: emptyList())
         val newShows = loadShows() ?: emptyList()
 
         val currentShowsNames = shows.associateBy { it.name }

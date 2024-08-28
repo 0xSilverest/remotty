@@ -4,6 +4,7 @@ import com.silverest.remotty.server.catalog.AniListService
 import com.silverest.remotty.server.catalog.EpisodesService
 import com.silverest.remotty.server.network.ServerService
 import com.silverest.remotty.server.catalog.ShowsService
+import com.silverest.remotty.server.utils.ServerConfig
 import com.silverest.remotty.server.network.MessagesHandler
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.*
@@ -12,13 +13,14 @@ import java.net.SocketException
 
 suspend fun main() {
     val logger = KotlinLogging.logger {}
+    val config = ServerConfig.loadConfig()
     logger.info { "Remotty started" }
 
     val serverService = ServerService.createServer(6786)
 
-    val folder = File("/home/silverest/Downloads/Anime")
-    val aniListService = AniListService()
-    val showsService = ShowsService(folder, aniListService, serverService)
+    val animeFolder = File(config.animeFolder)
+    val aniListService = AniListService(config.remoteFileUrl, config.aniListDataFile)
+    val showsService = ShowsService(animeFolder, aniListService, serverService)
     val episodesService = EpisodesService()
 
     showsService.startScheduleUpdates(1)
@@ -34,7 +36,7 @@ suspend fun main() {
                 try {
                     clientConnection.getMessages { message ->
                         CoroutineScope(Dispatchers.IO).launch {
-                            messagesHandler.parseMessages(folder, message)
+                            messagesHandler.parseMessages(animeFolder, message)
                         }
                     }
 

@@ -11,9 +11,10 @@ dependencies {
     implementation("com.github.ben-manes.caffeine:caffeine:3.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("com.apollographql.apollo:apollo-runtime")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("com.twelvemonkeys.imageio:imageio-webp:3.8.0")
+    implementation("com.charleskorn.kaml:kaml:0.61.0")
 
     implementation("org.slf4j:slf4j-api:2.0.7")
     implementation("io.github.oshai:kotlin-logging-jvm:5.1.4")
@@ -37,6 +38,23 @@ application {
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions.jvmTarget = "17"
+}
+
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "com.silverest.remotty.server.MainKt"
+    }
+    archiveBaseName.set("server-executable")
+    from(sourceSets.main.get().output)
+    dependsOn(configurations.runtimeClasspath)
+    from({
+        configurations.runtimeClasspath.get().filter { it.name.endsWith("jar") }.map { zipTree(it) }
+    })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named("build") {
+    dependsOn("jar")
 }
 
 tasks.test {

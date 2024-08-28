@@ -7,5 +7,6 @@ data class AniObject(
     val id: Int?,
     val titleRomanji: String?,
     val titleEnglish: String?,
-    val coverImageUrl: String?
+    val coverImageUrl: String?,
+    val format: String?,
 )

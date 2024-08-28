@@ -49,6 +49,7 @@ data class MessagesHandler (
                 Signal.SEEK_BACKWARD -> CommandExecutor.seek(-10)
                 Signal.SEEK_FORWARD -> CommandExecutor.seek(10)
                 Signal.PLAY -> CommandExecutor.play("${folder.absolutePath}/${message.content}")
+                Signal.PLAY_MOVIE -> CommandExecutor.playMovie("${folder.absolutePath}/${message.content}")
                 Signal.MUTE -> CommandExecutor.mute()
                 Signal.CLOSE -> CommandExecutor.close()
                 Signal.EXIT -> serverService.closeClient(client)
