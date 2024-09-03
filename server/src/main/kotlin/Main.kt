@@ -2,6 +2,7 @@ package com.silverest.remotty.server
 
 import com.silverest.remotty.server.catalog.AniListService
 import com.silverest.remotty.server.catalog.EpisodesService
+import com.silverest.remotty.server.catalog.ShowMetadataService
 import com.silverest.remotty.server.network.ServerService
 import com.silverest.remotty.server.catalog.ShowsService
 import com.silverest.remotty.server.utils.ServerConfig
@@ -19,8 +20,9 @@ suspend fun main() {
     val serverService = ServerService.createServer(6786)
 
     val animeFolder = File(config.animeFolder)
+    val showMetadataService = ShowMetadataService(File("anime_repo.json"))
     val aniListService = AniListService(config.remoteFileUrl, config.aniListDataFile)
-    val showsService = ShowsService(animeFolder, aniListService, serverService)
+    val showsService = ShowsService(animeFolder, showMetadataService, aniListService, serverService)
     val episodesService = EpisodesService()
 
     showsService.startScheduleUpdates(1)

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,12 +18,15 @@ import kotlinx.coroutines.*
 
 @Composable
 fun ConnectionScreen(
+    lastIpAddress: String,
     onConnect: (String) -> Unit,
-    onScan: (onScanComplete: (String?) -> Unit) -> Unit
+    onScan: (onScanComplete: (String?) -> Unit) -> Unit,
+    onStopScan: () -> Unit,
 ) {
-    var ipAddress by remember { mutableStateOf("") }
+    var ipAddress by remember { mutableStateOf(lastIpAddress) }
     var isLoading by remember { mutableStateOf(false) }
     var scanResult by remember { mutableStateOf<String?>(null) }
+    var isScanning by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     Box(
@@ -85,25 +89,35 @@ fun ConnectionScreen(
 
                     Button(
                         onClick = {
-                            coroutineScope.launch {
-                                isLoading = true
-                                scanResult = null
-                                onScan { result ->
-                                    isLoading = false
-                                    scanResult = result
-                                    if (result != null) {
-                                        ipAddress = result
+                            if (isScanning) {
+                                onStopScan()
+                                isScanning = false
+                                isLoading = false
+                            } else {
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    isScanning = true
+                                    scanResult = null
+                                    onScan { result ->
+                                        isLoading = false
+                                        scanResult = result
+                                        if (result != null) {
+                                            ipAddress = result
+                                        }
                                     }
                                 }
                             }
                         },
-                        enabled = !isLoading,
+                        enabled = !isLoading || isScanning,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = "Scan")
+                        Icon(
+                            if (isScanning) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = if (isScanning) "Stop Scan" else "Scan"
+                        )
                         Spacer(Modifier.width(4.dp))
-                        Text("Scan")
+                        Text(if (isScanning) "Stop" else "Scan")
                     }
                 }
 

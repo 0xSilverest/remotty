@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,16 +49,18 @@ fun ShowsListScreen(
     val filteredShows by showsViewModel.filteredShows.collectAsStateWithLifecycle()
     val isLoading by showsViewModel.isLoading.collectAsStateWithLifecycle()
     val searchQuery by showsViewModel.searchQuery.collectAsStateWithLifecycle()
-    var isConnected by remember { mutableStateOf(false) }
+    var isConnected by remember { mutableStateOf(true) }
     var isSearchActive by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        isConnected = clientManager.isConnected()
-        if (isConnected) {
-            showsViewModel.requestShowsList()
-        } else {
-            navController.navigate("connectionScreen") {
-                popUpTo("showsList") { inclusive = true }
+        clientManager.connectionStatus.collect { status ->
+            isConnected = status
+            if (status) {
+                showsViewModel.requestShowsList()
+            } else {
+                navController.navigate("connectionScreen") {
+                    popUpTo("showsList") { inclusive = true }
+                }
             }
         }
     }
@@ -259,9 +258,8 @@ fun ShowCard(show: ShowDescriptor, navController: NavController, clientManager: 
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(0.dp)
                     .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(bottomStart = 8.dp))
-                    .padding(10.dp)
+                    .padding(paddingValues = PaddingValues(bottom = 7.dp, top= 5.dp, start = 10.dp, end = 10.dp))
             ) {
                 Text(
                     text = if (show.format == ShowFormat.MOVIE) "Movie" else "TV",

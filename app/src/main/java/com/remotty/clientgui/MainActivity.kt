@@ -3,6 +3,7 @@ package com.remotty.clientgui
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -40,8 +42,12 @@ import com.remotty.clientgui.ui.viewmodels.EpisodeDetailsViewModel
 import com.remotty.clientgui.ui.viewmodels.EpisodesViewModel
 import com.remotty.clientgui.ui.viewmodels.ShowsViewModel
 import com.silverest.remotty.common.Signal
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private val connectionStatus = MutableStateFlow(false)
 
     private val clientManager: ClientManager by lazy {
         ClientManager(applicationContext)
@@ -105,13 +111,24 @@ class MainActivity : ComponentActivity() {
         setContent {
             ClientGuiTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    val isConnected by connectionStatus.collectAsStateWithLifecycle()
+                    val navController = rememberNavController()
+
                     MainScreen(
                         clientManager = clientManager,
                         showsViewModel = showsViewModel,
                         episodesViewModel = episodesViewModel,
-                        episodeDetailsViewModel = episodeDetailsViewModel
+                        episodeDetailsViewModel = episodeDetailsViewModel,
+                        navController = navController,
+                        isConnected = isConnected
                     )
                 }
+            }
+        }
+
+        lifecycleScope.launch {
+            clientManager.connectionStatus.collect { status ->
+                connectionStatus.value = status
             }
         }
     }
@@ -125,20 +142,19 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavHost(modifier: Modifier = Modifier,
                navController: NavHostController = rememberNavController(),
-               startDestination: String = "connectionScreen",
+               isConnected: Boolean = false,
                showsViewModel: ShowsViewModel,
                episodesViewModel: EpisodesViewModel,
                episodeDetailsViewModel: EpisodeDetailsViewModel,
                clientManager: ClientManager) {
     Box(modifier = modifier) {
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-        ) {
+        NavHost(navController, startDestination = if (isConnected) "showsList" else "connectionScreen") {
             composable("connectionScreen") {
                 ConnectionScreen(
+                    lastIpAddress = clientManager.getLastIpAddress(),
                     onConnect = { ipAddress ->
                         clientManager.connect(ipAddress)
+                        clientManager.saveLastIpAddress(ipAddress)
                         navController.navigate("showsList") {
                             popUpTo("connectionScreen") { inclusive = true }
                         }
@@ -152,6 +168,9 @@ fun AppNavHost(modifier: Modifier = Modifier,
                                 onScanComplete(null)
                             }
                         )
+                    },
+                    onStopScan = {
+                        clientManager.stopScan()
                     }
                 )
             }
@@ -223,11 +242,10 @@ fun MainScreen(
     clientManager: ClientManager,
     showsViewModel: ShowsViewModel,
     episodesViewModel: EpisodesViewModel,
-    episodeDetailsViewModel: EpisodeDetailsViewModel
+    episodeDetailsViewModel: EpisodeDetailsViewModel,
+    navController: NavHostController,
+    isConnected: Boolean
 ) {
-    var isConnected by remember { mutableStateOf(false) }
-    val navController = rememberNavController()
-
     Box(modifier = Modifier.fillMaxSize()) {
         AppNavHost(
             navController = navController,
@@ -248,15 +266,16 @@ fun MainScreen(
                 modifier = Modifier.align(Alignment.BottomEnd)
             )
         }
-    }
 
-    LaunchedEffect(navController) {
-        navController.currentBackStackEntryFlow.collect { backStackEntry ->
-            isConnected = backStackEntry.destination.route != "connectionScreen"
+        LaunchedEffect(isConnected) {
+            if (!isConnected) {
+                navController.navigate("connectionScreen") {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                }
+            }
         }
     }
 }
-
 
 @Composable
 fun RemoteControlFAB(onClick: () -> Unit, modifier: Modifier = Modifier) {

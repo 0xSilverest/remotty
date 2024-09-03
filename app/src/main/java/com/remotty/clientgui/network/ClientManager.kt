@@ -2,14 +2,13 @@ package com.remotty.clientgui.network
 
 import android.content.ContentValues.TAG
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
 import com.silverest.remotty.common.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.*
 import java.io.EOFException
 import java.io.IOException
 import java.io.ObjectInputStream
@@ -39,7 +38,13 @@ class ClientManager(context: Context) {
     val showsModificationFlow: SharedFlow<Pair<Set<ShowDescriptor>, Set<ShowDescriptor>>> =
         _showsModificationFlow.asSharedFlow()
 
+    private val _connectionStatus = MutableStateFlow(false)
+    val connectionStatus: StateFlow<Boolean> = _connectionStatus.asStateFlow()
+
+    private var scanJob: Job? = null
     private var receiveSignalsJob: Job? = null
+
+    private val sharedPreferences: SharedPreferences = context.getSharedPreferences("ClientPreferences", Context.MODE_PRIVATE)
 
     fun connect(ipAddress: String) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -49,6 +54,8 @@ class ClientManager(context: Context) {
                 objectReader = ObjectInputStream(clientSocket.getInputStream())
                 initialized = true
                 startReceiveSignals()
+                _connectionStatus.value = true
+                saveLastIpAddress(ipAddress)
             } catch (e: IOException) {
                 Log.e("ClientManager", "Connection failed: ${e.message}")
             } catch (e: ConnectException) {
@@ -61,19 +68,31 @@ class ClientManager(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             Log.d(TAG, "close: disconnecting from server...")
             stopReceivingSignals()
-            objectWriter.writeObject(Message(Signal.EXIT, ""))
-            objectWriter.flush()
-            objectReader.close()
-            objectWriter.close()
-            clientSocket.close()
+            try {
+                objectWriter.writeObject(Message(Signal.EXIT, ""))
+                objectWriter.flush()
+                objectReader.close()
+                objectWriter.close()
+                clientSocket.close()
+            } catch (e: IOException) {
+                Log.d(TAG, "close: socket already off")
+            } catch (e: UninitializedPropertyAccessException) {
+                Log.d(TAG, "close: socket not initialized")
+            }
+            _connectionStatus.value = false
         }
     }
 
     fun sendSignal(signal: Signal, content: String = "") {
         CoroutineScope(Dispatchers.IO).launch {
-            checkInitialization()
-            objectWriter.writeObject(Message(signal, content))
-            objectWriter.flush()
+            try {
+                checkInitialization()
+                objectWriter.writeObject(Message(signal, content))
+                objectWriter.flush()
+            } catch (e: IOException) {
+                Log.d(TAG, "sendSignal: ${e.message}")
+                _connectionStatus.value = false
+            }
         }
     }
 
@@ -129,9 +148,11 @@ class ClientManager(context: Context) {
                     }
                 } catch (e: EOFException) {
                     Log.d(TAG, "startReceiveSignals: Socket closed ${e.message}")
+                    _connectionStatus.value = false
                     break
                 } catch (e: SocketException) {
                     Log.d(TAG, "startReceiveSignals: Socket exception ${e.message}")
+                    _connectionStatus.value = false
                     break
                 }
             }
@@ -147,7 +168,7 @@ class ClientManager(context: Context) {
         onServerFound: (String?) -> Unit?,
         onScanComplete: () -> Unit
     ) {
-        CoroutineScope(Dispatchers.IO).launch {
+        scanJob = CoroutineScope(Dispatchers.IO).launch {
             val networkAddress = context.getNetworkAddress()
             val lastOctet = networkAddress.split('.').last().toIntOrNull() ?: 0
 
@@ -227,6 +248,19 @@ class ClientManager(context: Context) {
 
     fun updateChapter(chapter: Int) {
         sendSignal(Signal.SKIP_CHAPTER, "$chapter")
+    }
+
+    fun stopScan() {
+        scanJob?.cancel()
+        scanJob = null
+    }
+
+    fun saveLastIpAddress(ipAddress: String) {
+        sharedPreferences.edit().putString("last_ip_address", ipAddress).apply()
+    }
+
+    fun getLastIpAddress(): String {
+        return sharedPreferences.getString("last_ip_address", "") ?: ""
     }
 
     companion object {

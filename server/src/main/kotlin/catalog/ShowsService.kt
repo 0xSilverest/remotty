@@ -19,6 +19,7 @@ import kotlin.io.path.exists
 
 data class ShowsService (
     val folder: File,
+    val showMetadataService: ShowMetadataService,
     val aniListService: AniListService,
     val serverService: ServerService
 ) : CoroutineScope {
