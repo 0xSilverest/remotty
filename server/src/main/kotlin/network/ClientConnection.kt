@@ -30,11 +30,25 @@ data class ClientConnection (
             if (message is Message) {
                 logger.info { message }
                 messagesHandler(message)
+            } else if (message is KeepAliveMessage) {
+                handlePing()
             } else {
                 throw IllegalArgumentException("Received object is not a Message")
             }
         }
     }
+
+    fun handlePing() {
+        try {
+            oos.writeObject(KeepAliveMessage(message = "pong"))
+            oos.flush()
+            oos.reset()
+            logger.debug { "Responded to ping with pong" }
+        } catch (e: SocketException) {
+            logger.error(e) { "Error while sending pong response" }
+        }
+    }
+
 
     fun sendEpisodes(showName: String, episodes: List<EpisodeDescriptor>, totalEpisodes: Int, startEpisode: Int) {
         launch {

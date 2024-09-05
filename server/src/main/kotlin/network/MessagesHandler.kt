@@ -34,13 +34,13 @@ data class MessagesHandler (
 
                     client.sendEpisodes(showName, episodes, totalEps, remainingPages)
                 }
-         Signal.SEND_DETAILS -> {
+                Signal.SEND_DETAILS -> {
                     val chapters = CommandExecutor.getVideoChapters()
                     val subs = CommandExecutor.getSubtitleTracks()
 
                     client.sendDetails(subs, chapters)
                 }
-
+                Signal.KEEP_ALIVE -> client.handlePing()
                 Signal.SKIP_CHAPTER -> CommandExecutor.setChapter(message.content.toInt())
                 Signal.PUT_SUBS -> CommandExecutor.setSubtitle(message.content.toInt())
                 Signal.INCREASE -> CommandExecutor.increaseVolume(5)

@@ -255,7 +255,10 @@ fun MainScreen(
             episodeDetailsViewModel = episodeDetailsViewModel
         )
 
-        if (isConnected) {
+        val currentDestination by navController.currentBackStackEntryFlow.collectAsStateWithLifecycle(null)
+        val isRemoteControlScreen = currentDestination?.destination?.route?.startsWith("remoteControl") == true
+
+        if (isConnected && !isRemoteControlScreen) {
             RemoteControlFAB(
                 onClick = {
                     navController.navigate("remoteControl/\"\"") {

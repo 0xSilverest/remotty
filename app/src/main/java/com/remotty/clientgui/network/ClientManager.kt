@@ -41,10 +41,17 @@ class ClientManager(context: Context) {
     private val _connectionStatus = MutableStateFlow(false)
     val connectionStatus: StateFlow<Boolean> = _connectionStatus.asStateFlow()
 
+    private val _latency = MutableStateFlow<Long>(0)
+    val latency: StateFlow<Long> = _latency.asStateFlow()
+
     private var scanJob: Job? = null
     private var receiveSignalsJob: Job? = null
 
     private val sharedPreferences: SharedPreferences = context.getSharedPreferences("ClientPreferences", Context.MODE_PRIVATE)
+
+    private var keepAliveJob: Job? = null
+    private val keepAliveInterval = 30000L
+    private val pongTimeOut = 5000L
 
     fun connect(ipAddress: String) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -54,6 +61,7 @@ class ClientManager(context: Context) {
                 objectReader = ObjectInputStream(clientSocket.getInputStream())
                 initialized = true
                 startReceiveSignals()
+                startKeepAlive()
                 _connectionStatus.value = true
                 saveLastIpAddress(ipAddress)
             } catch (e: IOException) {
@@ -68,6 +76,7 @@ class ClientManager(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             Log.d(TAG, "close: disconnecting from server...")
             stopReceivingSignals()
+            stopKeepAlive()
             try {
                 objectWriter.writeObject(Message(Signal.EXIT, ""))
                 objectWriter.flush()
@@ -144,6 +153,13 @@ class ClientManager(context: Context) {
                                     message.details
                                 )
                             }
+
+                            is KeepAliveMessage -> {
+                                    val pongTime = System.currentTimeMillis()
+                                    val rtt = pongTime - message.timestamp
+                                    _latency.value = rtt
+                                    Log.d(TAG, "Round-trip time: $rtt ms")
+                            }
                         }
                     }
                 } catch (e: EOFException) {
@@ -163,6 +179,12 @@ class ClientManager(context: Context) {
         receiveSignalsJob?.cancel()
         receiveSignalsJob = null
     }
+
+    private fun stopKeepAlive() {
+        keepAliveJob?.cancel()
+        keepAliveJob = null
+    }
+
 
     fun scanForServers(
         onServerFound: (String?) -> Unit?,
@@ -261,6 +283,46 @@ class ClientManager(context: Context) {
 
     fun getLastIpAddress(): String {
         return sharedPreferences.getString("last_ip_address", "") ?: ""
+    }
+
+    private fun startKeepAlive() {
+        keepAliveJob = CoroutineScope(Dispatchers.IO).launch {
+            while (isActive) {
+                delay(keepAliveInterval)
+                try {
+                    sendPing()
+                } catch (e: IOException) {
+                    Log.e(TAG, "Keep-alive failed: ${e.message}")
+                    _connectionStatus.value = false
+                    reconnect()
+                    break
+                }
+            }
+        }
+    }
+
+    private suspend fun sendPing() {
+        withContext(Dispatchers.IO) {
+            objectWriter.writeObject(KeepAliveMessage(message = "ping"))
+            objectWriter.flush()
+            withTimeout(pongTimeOut) {
+                while (isActive) {
+                    if (_latency.value != 0L) {
+                        _latency.value = 0L // Reset for next ping
+                        break
+                    }
+                    delay(100)
+                }
+            }
+        }
+    }
+
+    private fun reconnect() {
+        close()
+        val lastIpAddress = getLastIpAddress()
+        if (lastIpAddress.isNotEmpty()) {
+            connect(lastIpAddress)
+        }
     }
 
     companion object {
