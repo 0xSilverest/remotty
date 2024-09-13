@@ -214,8 +214,8 @@ fun AppNavHost(modifier: Modifier = Modifier,
                     onDecreaseVolume = { clientManager.sendSignal(Signal.DECREASE) },
                     onMute = { clientManager.sendSignal(Signal.MUTE) },
                     onPausePlay = { clientManager.sendSignal(Signal.PLAY_OR_PAUSE) },
-                    onForward = { clientManager.sendSignal(Signal.SEEK_FORWARD) },
-                    onBackward = { clientManager.sendSignal(Signal.SEEK_BACKWARD) },
+                    onForward = { clientManager.sendSignal(Signal.SEEK_FORWARD, "$it") },
+                    onBackward = { clientManager.sendSignal(Signal.SEEK_BACKWARD, "$it") },
                     onNext = {
                         if (nextEpisode != null) {
                             clientManager.sendSignal(Signal.PLAY, "$showName/${nextEpisode!!.relativePath}")
@@ -273,7 +273,7 @@ fun MainScreen(
         LaunchedEffect(isConnected) {
             if (!isConnected) {
                 navController.navigate("connectionScreen") {
-                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                    popUpTo(0) { inclusive = true }
                 }
             }
         }

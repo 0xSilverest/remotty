@@ -10,4 +10,12 @@ project ("server") {
 
     group = "com.silverest"
     version = "1.0-SNAPSHOT"
+
+    tasks.register<Copy>("installServerJar") {
+        from(tasks.named("jar"))
+        into(File(System.getProperty("user.home"), "bin"))
+        doLast {
+            println("Server JAR installed at ${System.getProperty("user.home")}/bin")
+        }
+    }
 }

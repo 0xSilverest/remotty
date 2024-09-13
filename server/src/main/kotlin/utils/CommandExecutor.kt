@@ -48,6 +48,7 @@ object CommandExecutor {
                     "mpv",
                     "--fs",
                     "--fs-screen=1",
+                    "--geometry=2560x1440",
                     "--input-ipc-server=/tmp/mpvsocket",
                     videoPath
                 )
@@ -72,6 +73,7 @@ object CommandExecutor {
 
     fun seek(seconds: Int) {
         val command = """{"command": ["seek", $seconds, "relative"]}"""
+        logger.info { command }
         mpvCommand(command)
     }
 

@@ -1,14 +1,11 @@
 package com.remotty.clientgui.ui.screens
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,8 +29,8 @@ fun RemoteControlScreen(
     onIncreaseVolume: () -> Unit = {},
     onDecreaseVolume: () -> Unit = {},
     onPausePlay: () -> Unit = {},
-    onForward: () -> Unit = {},
-    onBackward: () -> Unit = {},
+    onForward: (Int) -> Unit = {},
+    onBackward: (Int) -> Unit = {},
     onNext: () -> Unit = {},
     onLast: () -> Unit = {},
     onMute: () -> Unit = {},
@@ -114,7 +111,7 @@ fun RemoteControlScreen(
                     )
                 }
 
-                IconButton(onClick = onBackward) {
+                IconButton(onClick = { onBackward(5) }) {
                     Icon(
                         painter = painterResource(id = R.mipmap.seek_backward),
                         contentDescription = "Backward",
@@ -130,7 +127,7 @@ fun RemoteControlScreen(
                     )
                 }
 
-                IconButton(onClick = onForward) {
+                IconButton(onClick = { onForward(5) }) {
                     Icon(
                         painter = painterResource(id = R.mipmap.seek_forward),
                         contentDescription = "Forward",
@@ -152,25 +149,41 @@ fun RemoteControlScreen(
 
             if (!isSmallScreen) Spacer(modifier = Modifier.height(20.dp)) else Spacer(modifier = Modifier.height(6.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                IconButton(onClick = onDecreaseVolume) {
-                    Icon(
-                        painter = painterResource(id = R.mipmap.decrease),
-                        contentDescription = "Decrease Volume",
-                        modifier = Modifier.size(if (isSmallScreen) 40.dp else 48.dp)
-                    )
+            Box(modifier = Modifier.fillMaxWidth().height(48.dp).align(Alignment.CenterHorizontally)) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    IconButton(onClick = onDecreaseVolume) {
+                        Icon(
+                            painter = painterResource(id = R.mipmap.decrease),
+                            contentDescription = "Decrease Volume",
+                            modifier = Modifier.size(if (isSmallScreen) 40.dp else 48.dp)
+                        )
+                    }
+
+                    IconButton(onClick = onIncreaseVolume) {
+                        Icon(
+                            painter = painterResource(id = R.mipmap.increase),
+                            contentDescription = "Increase Volume",
+                            modifier = Modifier.size(if (isSmallScreen) 40.dp else 48.dp)
+                        )
+                    }
                 }
 
-                IconButton(onClick = onIncreaseVolume) {
+                IconButton(
+                    onClick = { onForward(85) },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(y = (5).dp, x = (-10).dp)
+                ) {
                     Icon(
-                        painter = painterResource(id = R.mipmap.increase),
-                        contentDescription = "Increase Volume",
-                        modifier = Modifier.size(if (isSmallScreen) 40.dp else 48.dp)
+                        painter = painterResource(id = R.mipmap.holy_skip),
+                        contentDescription = "Holy skip 1:25",
+                        modifier = Modifier.size(36.dp)
                     )
+
                 }
             }
 
